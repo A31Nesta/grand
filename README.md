@@ -8,7 +8,7 @@ More specifically a constraint-based random number generator.
 
 Grand evaluates expressions (Grand Expressions) in order to generate the numbers. These expressions are based on ranges that can generate numbers that also follow specific constraints.
 
-Since this is a work in progress, this is a mokup:
+Since this is a work in progress, this is a mockup:
 
 ```rust
 fn main() {
