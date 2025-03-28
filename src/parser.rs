@@ -5,6 +5,8 @@ mod token;
 
 mod lexer;
 
+mod gex;
+
 pub fn parse(source: &str) {
     let tokens = lexer::tokenize(source);
 
