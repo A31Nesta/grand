@@ -9,6 +9,7 @@ pub enum TokenType {
     // Separator
     Comma,
     // Control
+    Not,
     LBrack,
     RBrack,
     LParen,

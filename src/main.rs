@@ -1,10 +1,9 @@
 use std::error::Error;
 
-use grand::random_f64;
+use grand::expr;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let num = random_f64(-10.0, 10.0);
-    println!("{num}");
+    expr("((0..10),,(20.,50|*2|))|*[2,3,5]|");
 
     Ok(())
 }
