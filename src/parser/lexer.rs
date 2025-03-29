@@ -1,4 +1,4 @@
-use std::{io::Write, str::Chars};
+use std::str::Chars;
 
 use super::{token::Token, token_type::TokenType};
 
@@ -199,5 +199,6 @@ pub fn print_tokens(tokens: &Vec<Token>) {
 
         print!("{}{}\x1b[0m", token_color, token.content);
     }
-    std::io::stdout().flush().unwrap();
+    // Flush and print a new line
+    println!()
 }

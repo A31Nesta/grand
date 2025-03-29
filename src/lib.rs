@@ -33,11 +33,11 @@ mod rng_functions;
 
 mod parser;
 
-use parser::parse;
+use parser::{gex::Gex, parse};
 pub use rng_traits::Randomizable;
 pub use rng_functions::random_f64;
+pub use parser::parse_error::ParseError;
 
-
-pub fn expr(expression: &str) {
-    parse(expression);
+pub fn expr(expression: &str) -> Result<Gex, ParseError> {
+    parse(expression)
 }
