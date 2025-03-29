@@ -16,7 +16,7 @@ fn main() {
     let one_to_ten: i32 = grand::expr("1..10").eval();
 
     // Any multiple of 2
-    let even_num: i64 = grand::expr("..|*2|").eval();
+    let even_num: i64 = grand::expr("..|*2").eval();
 
     /*
         Generate a number between (but not equal to) a random
@@ -26,7 +26,7 @@ fn main() {
         This number must be a multiple of a number randomly
         selected between 2, 3 or 5.
     */
-    let other_num: f64 = grand::expr("((0..10),,(20.,50|*2|))|*[2,3,5]|").eval();
+    let other_num: f64 = grand::expr("((0..10),,(20.,50|*2|))|*[2,3,5]").eval();
 }
 ```
 

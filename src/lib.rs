@@ -22,9 +22,10 @@
 //! system, it's the constraints. You can force the generated number to have specific
 //! characteristics:
 //! 
-//! - `0..100|*2|` - The pipes (`|`) indicate a constraint and the asterisk (`*`) indicates a "multiple of" constraint.
+//! - `0..100|*2` - The pipe (`|`) indicates a constraint and the asterisk (`*`) indicates a "multiple of" constraint.
 //!     In this case we are generating a random number between 0 and 100 that is a multiple of 2 (even).
-//! - `0..100|!*2|` - We can also negate the constraint. This expression generates a random odd number between 0 and 100.
+//! - `0..100|!*2` - We can also negate the constraint. This expression generates a random odd number between 0 and 100.
+//! - `0..100|*2,3,5` - This constraint indicates that the number must be a multiple of 2, 3 and 5.
 
 
 mod rng_traits;

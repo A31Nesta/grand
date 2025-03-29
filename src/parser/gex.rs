@@ -1,5 +1,7 @@
 use expression::Expression;
 
+use crate::random_f64;
+
 mod expression;
 
 /// A Grand Expression. It is a recursive structure that evaluates a range and modifiers (constraints)
@@ -24,10 +26,12 @@ impl<'a> Gex<'a> {
     }
 
     pub fn range(x: f64, y: f64, x_open: bool, y_open: bool) -> f64 {
-        todo!()
+        let number = random_f64(x, y);
+        number
     }
 
     pub fn select(options: Vec<f64>) -> f64 {
-        todo!()
+        let random_index = random_f64(0f64, options.len() as f64) as usize;
+        return options.get(random_index).expect("Out of range. Random index generated was incorrect").clone()
     }
 }

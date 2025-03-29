@@ -1,4 +1,4 @@
-use std::str::Chars;
+use std::{io::Write, str::Chars};
 
 use super::{token::Token, token_type::TokenType};
 
@@ -175,4 +175,29 @@ pub fn tokenize(source: &str) -> Vec<Token> {
     };
 
     lexer.tokenize()
+}
+
+#[allow(unused)]
+pub fn print_tokens(tokens: &Vec<Token>) {
+    for token in tokens {
+        let token_color = match token.token_type {
+            TokenType::Number => "\x1b[38;5;230m",
+            TokenType::RangeCC => "\x1b[38;5;42m",
+            TokenType::RangeOO => "\x1b[38;5;42m",
+            TokenType::RangeCO => "\x1b[38;5;42m",
+            TokenType::RangeOC => "\x1b[38;5;42m",
+            TokenType::Comma => "\x1b[38;5;225m",
+            TokenType::Not => "\x1b[38;5;192m",
+            TokenType::LBrack => "\x1b[38;5;33m",
+            TokenType::RBrack => "\x1b[38;5;33m",
+            TokenType::LParen => "\x1b[38;5;141m",
+            TokenType::RParen => "\x1b[38;5;141m",
+            TokenType::Constraint => "\x1b[38;5;209m",
+            TokenType::CMultOf => "\x1b[38;5;195m",
+            TokenType::Ignored => "\x1b[0m",
+        };
+
+        print!("{}{}\x1b[0m", token_color, token.content);
+    }
+    std::io::stdout().flush().unwrap();
 }
