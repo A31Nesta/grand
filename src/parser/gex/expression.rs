@@ -3,11 +3,7 @@ use super::Gex;
 #[derive(Debug, Clone)]
 pub enum Expression {
     Number(f64),
-
-    RangeCC(Box<Gex>, Box<Gex>),
-    RangeCO(Box<Gex>, Box<Gex>),
-    RangeOC(Box<Gex>, Box<Gex>),
-    RangeOO(Box<Gex>, Box<Gex>),
-
-    Select(Vec<Box<Gex>>)
+    Range(Box<Gex>, Box<Gex>, bool, bool), // X, Y, X is Open, Y is Open
+    Select(Vec<Box<Gex>>),
+    PrecalculatedRange(Box<Gex>, Box<Gex>, bool, bool, Vec<f64>), // X, Y, X is Open, Y is Open, possible values
 }

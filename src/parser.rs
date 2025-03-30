@@ -1,4 +1,4 @@
-use gex::Gex;
+use gex::{constraint::Constraint, Gex};
 use parse_error::ParseError;
 use token::Token;
 use token_type::TokenType;
@@ -49,11 +49,16 @@ fn parse_expression(tokens: &[Token], mut index: usize) -> (Result<Gex, ParseErr
                 return (Ok(x), index);
             }
         },
-        token_type::TokenType::RangeCC => todo!(),
-        token_type::TokenType::RangeOO => todo!(),
-        token_type::TokenType::RangeCO => todo!(),
-        token_type::TokenType::RangeOC => todo!(),
-        token_type::TokenType::LBrack => todo!(),
+        token_type::TokenType::RangeCC |
+        token_type::TokenType::RangeOO |
+        token_type::TokenType::RangeCO |
+        token_type::TokenType::RangeOC |
+        token_type::TokenType::LBrack => {
+            let x = Gex::num(i64::MIN as f64);
+            let res = parse_range(x, tokens, index);
+            // TODO: Check if all tokens were actually consumed
+            return res;
+        },
         token_type::TokenType::LParen => {
             let subex_end_index = find_subexpression_end(tokens, index);
             let (res, _) = parse_expression(&tokens[index+1..subex_end_index], 0);
@@ -84,6 +89,10 @@ fn parse_expression(tokens: &[Token], mut index: usize) -> (Result<Gex, ParseErr
     }
 }
 
+fn parse_selection(tokens: &[Token], mut index: usize) -> (Result<Gex, ParseError>, usize) {
+    todo!()
+}
+
 /*
  * Takes the first Gex (x) and the tokens and index for the next 
  */
@@ -105,37 +114,157 @@ fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, Parse
 
     // Next should be a number, sub-expression or selection
     index += 1;
-    let token_y = &tokens[index];
-    let y: Gex = match &token_y.token_type {
-        TokenType::Number => {
-            let y_num: f64 = token_y.content.parse().expect("lexing/parsing error. NaN found in numerical token");
-            index += 1;
-            Gex::num(y_num)
-        },
-        TokenType::LBrack => {
-            // TODO: implement parse_selection()
-            todo!()
-        },
-        TokenType::LParen => {
-            let subex_end_index = find_subexpression_end(tokens, index);
-            let (res, _) = parse_expression(&tokens[index+1..subex_end_index], 0);
-            index = subex_end_index+1;
-            match res {
-                Ok(gex) => gex,
-                Err(err) => return (Err(err), index),
+    let y: Gex = if tokens.len() > index {
+        // If we still have tokens we continue to read. We expect a number (or subexpression / selection)
+        let token_y = &tokens[index];
+        match &token_y.token_type {
+            TokenType::Number => {
+                let y_num: f64 = token_y.content.parse().expect("lexing/parsing error. NaN found in numerical token");
+                index += 1;
+                Gex::num(y_num)
             }
-        },
-        _ => {
-            return (Err(ParseError::UnexpectedToken(
-                vec![TokenType::Number, TokenType::LBrack, TokenType::LParen],
-                token_y.token_type.clone(),
-                token_y.line,
-                token_y.column
-            )), index)
+            TokenType::LBrack => {
+                // TODO: implement parse_selection()
+                todo!()
+            }
+            TokenType::LParen => {
+                let subex_end_index = find_subexpression_end(tokens, index);
+                let (res, _) = parse_expression(&tokens[index+1..subex_end_index], 0);
+                index = subex_end_index+1;
+                match res {
+                    Ok(gex) => gex,
+                    Err(err) => return (Err(err), index),
+                }
+            }
+            _ => Gex::num(i64::MAX as f64)
         }
+    } else {
+        // Ok so we have no more tokens to read, let's use the default value
+        Gex::num(i64::MAX as f64)
     };
 
-    (Ok(Gex::range(x, y, x_open, y_open)), index)
+    if tokens.len() > index {
+        parse_constraints(Gex::range(x, y, x_open, y_open), tokens, index)
+    } else {
+        (Ok(Gex::range(x, y, x_open, y_open)), index)
+    }
+}
+
+fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, ParseError>, usize) {
+    let constraints: Vec<Constraint> = Vec::new();
+
+    while index < tokens.len() {
+        let token = &tokens[index];
+
+        // Exit if this is not a constraint
+        if token.token_type != TokenType::Constraint {
+            return (
+                Err(ParseError::UnexpectedToken(
+                    vec![TokenType::Constraint],
+                    token.token_type.clone(),
+                    token.line,
+                    token.column
+                )),
+                index
+            )
+        }
+        index += 1;
+
+        // Parse constraint
+        // We expect a NOT or a Constraint
+        // If we get a NOT, we expect a Constraint afterwards
+        let mut constraint = match tokens[index].token_type {
+            TokenType::Not => {
+                index += 1;
+                // TODO: Change with match if this ever gets expanded. Alternatively, refactor to avoid duplication
+                if tokens[index].token_type != TokenType::CMultOf {
+                    return (
+                        Err(ParseError::UnexpectedToken(
+                            vec![TokenType::CMultOf],
+                            token.token_type.clone(),
+                            token.line,
+                            token.column
+                        )),
+                        index
+                    )
+                }
+                index += 1;
+                Constraint::NotMultipleOf(Vec::new())
+            },
+            TokenType::CMultOf => {
+                index += 1;
+                Constraint::MultipleOf(0f64)
+            },
+            _ => {
+                return (
+                    Err(ParseError::UnexpectedToken(
+                        vec![TokenType::Not, TokenType::CMultOf],
+                        token.token_type.clone(),
+                        token.line,
+                        token.column
+                    )),
+                    index
+                )
+            }
+        };
+
+        // Find numbers
+        let mut entries: Vec<f64> = Vec::new();
+        let mut expecting_number = true; // we expect comma, number, comma, number..... After number we could also have another constraint
+
+        'loop1: loop {
+            if expecting_number {
+                if tokens[index].token_type != TokenType::Number {
+                    return (
+                        Err(ParseError::UnexpectedToken(
+                            vec![TokenType::Number],
+                            token.token_type.clone(),
+                            token.line,
+                            token.column
+                        )),
+                        index
+                    )
+                }
+
+                let number: f64 = tokens[index].content.parse().expect("lexing/parsing error. NaN found in numerical token");
+                entries.push(number);
+            } else {
+                if index >= tokens.len() {
+                    break;
+                }
+                match tokens[index].token_type {
+                    TokenType::Comma => (), // Continue the loop as usual
+                    TokenType::Constraint => {
+                        println!("AA");
+                        break 'loop1;
+                    },
+                    _ => return (
+                        Err(ParseError::UnexpectedToken(
+                            vec![TokenType::Comma, TokenType::Constraint],
+                            tokens[index].token_type.clone(),
+                            tokens[index].line,
+                            tokens[index].column
+                        )),
+                        index
+                    )
+                }
+            }
+            expecting_number = !expecting_number;
+            index += 1;
+        }
+
+        match &mut constraint {
+            Constraint::MultipleOf(lcm) => {
+                *lcm = least_common_multiple(&mut entries);
+            },
+            Constraint::NotMultipleOf(items) => {
+                *items = entries;
+            },
+        }
+        println!("{:?}", constraint)
+    }
+
+    (Ok(gex), index)
 }
 
 fn find_subexpression_end(tokens: &[Token], mut index: usize) -> usize {
@@ -159,4 +288,8 @@ fn find_subexpression_end(tokens: &[Token], mut index: usize) -> usize {
     }
 
     index
+}
+
+fn least_common_multiple(numbers: &Vec<f64>) -> f64 {
+    todo!()
 }
