@@ -56,7 +56,9 @@ use parser::parse;
 pub use rng_traits::Randomizable;
 pub use parser::gex::Gex;
 pub use parser::parse_error::ParseError;
+use wasm_bindgen::prelude::wasm_bindgen;
 
-pub fn expr(expression: &str) -> Result<Gex, ParseError> {
+#[wasm_bindgen]
+pub fn expr(expression: &str) -> Gex {
     parse(expression)
 }

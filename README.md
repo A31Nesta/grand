@@ -38,3 +38,10 @@ fn main() {
 - `grand::expr()` takes a string slice and returns a `Gex` (Grand Expression) object containing the "compiled" expression. Some minimal optimizations are done if possible.
 
 - `grand::Gex::eval()` runs the expression and returns the random number generated.
+
+## Building
+
+Run this command to build the library for WASM:
+```bash
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' wasm-pack build --target web
+```

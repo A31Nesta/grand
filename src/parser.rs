@@ -29,10 +29,10 @@ const PRECALC_MEMORY_BUDGET: f64 = 131072f64; // 1 MB Maximum
  * - Add errors and error handling. Getting a random number shouldn't (usually) panic.
  */
 
-pub fn parse(source: &str) -> Result<Gex, ParseError> {
+pub fn parse(source: &str) -> Gex {
     let tokens = lexer::tokenize(source);
     lexer::print_tokens(&tokens);
-    parse_expression(&tokens, 0).0
+    parse_expression(&tokens, 0).0.unwrap()
 }
 
 /*

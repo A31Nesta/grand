@@ -1,5 +1,6 @@
 use constraint::Constraint;
 use expression::Expression;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::rng_functions::{random_f64, random_usize};
 
@@ -18,6 +19,7 @@ const MAX_RANGE_HELL_REROLLS: usize = 1000;
 /// or a selection from a list.
 /// The range's parameters may be other expressions that have to be evaluated first.
 #[derive(Debug, Clone)]
+#[wasm_bindgen]
 pub struct Gex {
     expression_type: Expression,
     min_number: f64,

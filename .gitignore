@@ -1,1 +1,3 @@
 /target
+# WASM built binary
+/pkg
