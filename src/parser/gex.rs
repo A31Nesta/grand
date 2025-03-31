@@ -22,7 +22,8 @@ pub struct Gex {
     expression_type: Expression,
     min_number: f64,
     max_number: f64,
-    dynamic_constraints: Vec<Constraint>
+    dynamic_constraints: Vec<Constraint>,
+    float_mode: bool, // a mult_of constraint with an integer value disables float mode. Integer mode enforces closed/open ranges better
 }
 
 impl Gex {
@@ -31,7 +32,8 @@ impl Gex {
             expression_type: Expression::Number(num),
             min_number: num,
             max_number: num,
-            dynamic_constraints: Vec::new()
+            dynamic_constraints: Vec::new(),
+            float_mode: true
         }
     }
     pub fn from_range(x: Gex, y: Gex, x_open: bool, y_open: bool) -> Self {
@@ -46,28 +48,32 @@ impl Gex {
             expression_type: Expression::Range(x, y, x_open, y_open),
             min_number,
             max_number,
-            dynamic_constraints: Vec::new()
+            dynamic_constraints: Vec::new(),
+            float_mode: true
         }
     }
     pub fn from_select(objects: Vec<Gex>) -> Self {
-        // Get minimum and maximum values
-        let (min_number, max_number) = objects
+        // Get minimum and maximum values and float mode
+        // Float mode propagates, if this Gex contains float-mode Gexes, it will become
+        // a float-mode Gex as well
+        let (min_number, max_number, float_mode) = objects
             .iter()
             .map(|gex| {
-                (gex.min_number, gex.max_number)
+                (gex.min_number, gex.max_number, gex.float_mode)
             })
-            .reduce(|acc, elem| (f64::min(acc.0, elem.0), f64::max(acc.1, elem.1)))
+            .reduce(|acc, elem| (f64::min(acc.0, elem.0), f64::max(acc.1, elem.1), acc.2 || elem.2))
             .expect("range was empty. This should be an Error, not a Panic");
 
         let objects: Vec<Box<Gex>> = objects.iter().map(|obj| {
             Box::new(obj.to_owned())
         }).collect();
-        
+
         Gex {
             expression_type: Expression::Select(objects),
             min_number,
             max_number,
-            dynamic_constraints: Vec::new()
+            dynamic_constraints: Vec::new(),
+            float_mode
         }
     }
     pub fn from_precalc(orig: Gex, values: Vec<f64>) -> Self {
@@ -79,11 +85,21 @@ impl Gex {
         } else {
             (Box::new(Gex::from_num(min)), Box::new(Gex::from_num(max)), false, false)
         };
+        // Get Float mode by searching for a decimal number. If we find it, this Gex should be in float mode
+        let float_mode = 
+            match values.iter().find(|value| {
+                *value % 1f64 != 0f64
+            }) {
+                Some(_) => true,
+                None => false,
+            }
+        ;
         Gex {
             expression_type: Expression::PrecalculatedRange(x_gex, y_gex, x_open, y_open, values),
             min_number: min,
             max_number: max,
-            dynamic_constraints: Vec::new()
+            dynamic_constraints: Vec::new(),
+            float_mode
         }
     }
 
@@ -95,6 +111,13 @@ impl Gex {
     }
 
     pub fn add_constraint(&mut self, constraint: Constraint) {
+        if let Constraint::MultipleOf(value) = constraint {
+            if value % 1f64 == 0f64 {
+                // If this number should be a multiple of an integer,
+                // float mode should be disabled
+                self.float_mode = false;
+            }
+        }
         self.dynamic_constraints.push(constraint);
     }
 
@@ -115,7 +138,24 @@ impl Gex {
         self.eval_range_hell(x, y, x_open, y_open, 0)
     }
     fn eval_range_hell(&self, x: f64, y: f64, x_open: bool, y_open: bool, iteration_n: usize) -> f64 {
-        let mut number = random_f64(x, y);
+        let mut number = if self.float_mode {
+            let mut generated = random_f64(x, y);
+            // This should basically never happen, but we have to check if we got exactly
+            // X or Y in supposedly open intervals.
+            // A bit strange how it's implemented but, again, it should never happen lol
+            if x_open && generated == x {
+                generated += 0.001;
+            }
+            else if y_open && generated == y {
+                generated -= 0.001;
+            }
+            generated
+        } else {
+            // Enforce ranges. This can actually be done with integers
+            let x_range_mod = if x_open { 1 } else { 0 };
+            let y_range_mod = if y_open { 0 } else { 1 };
+            random_usize(x as usize + x_range_mod, y as usize + y_range_mod) as f64
+        };
         
         for constraint in &self.dynamic_constraints {
             match constraint {
