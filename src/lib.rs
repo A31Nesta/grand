@@ -59,6 +59,18 @@ pub use parser::parse_error::ParseError;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]
-pub fn expr(expression: &str) -> Gex {
-    parse(expression)
+pub struct GrandEx {
+    gex: Gex
+}
+
+#[wasm_bindgen]
+impl GrandEx {
+    pub fn eval(&self) -> f64 {
+        self.gex.eval()
+    }
+}
+
+#[wasm_bindgen]
+pub fn expr(expression: &str) -> GrandEx {
+    GrandEx { gex: parse(expression) }
 }
