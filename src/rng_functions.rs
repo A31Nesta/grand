@@ -19,3 +19,12 @@ pub fn random_usize(min: usize, max: usize) -> usize {
 
     proportional_rand + min
 }
+pub fn random_i64(min: i64, max: i64) -> i64 {
+    let rand_base = u64::random();
+    let range = max - min;
+
+    let proportion_unit = u64::MAX / range as u64;
+    let proportional_rand = rand_base / proportion_unit;
+
+    proportional_rand as i64 + min
+}

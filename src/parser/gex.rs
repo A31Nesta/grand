@@ -2,7 +2,7 @@ use constraint::Constraint;
 use expression::Expression;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::rng_functions::{random_f64, random_usize};
+use crate::rng_functions::{random_f64, random_i64, random_usize};
 
 pub mod expression;
 pub mod constraint;
@@ -156,7 +156,7 @@ impl Gex {
             // Enforce ranges. This can actually be done with integers
             let x_range_mod = if x_open { 1 } else { 0 };
             let y_range_mod = if y_open { 0 } else { 1 };
-            random_usize(x as usize + x_range_mod, y as usize + y_range_mod) as f64
+            random_i64(x as i64 + x_range_mod, y as i64 + y_range_mod) as f64
         };
         
         for constraint in &self.dynamic_constraints {

@@ -70,7 +70,12 @@ fn parse_expression(tokens: &[Token], mut index: usize) -> (Result<Gex, ParseErr
         token_type::TokenType::RangeCC |
         token_type::TokenType::RangeOO |
         token_type::TokenType::RangeCO |
-        token_type::TokenType::RangeOC |
+        token_type::TokenType::RangeOC => {
+            let x = Gex::from_num(i64::MIN as f64);
+            let res = parse_range(x, tokens, index);
+            // TODO: Check if all tokens were actually consumed
+            return res;
+        }
         token_type::TokenType::LBrack => {
             let subex_end_index = find_selection_end(tokens, index);
             let res = parse_selection(&tokens[index+1..subex_end_index]);
