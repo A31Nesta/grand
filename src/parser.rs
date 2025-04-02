@@ -1,5 +1,6 @@
 use gex::{constraint::Constraint, Gex};
 use parse_error::ParseError;
+use rust_decimal::{dec, prelude::FromPrimitive, Decimal};
 use token::Token;
 use token_type::TokenType;
 
@@ -11,7 +12,7 @@ mod lexer;
 pub mod parse_error;
 pub mod gex;
 
-const PRECALC_MEMORY_BUDGET: f64 = 131072f64; // 1 MB Maximum
+const PRECALC_MEMORY_BUDGET: Decimal = dec!(131072); // 1 MB Maximum
 
 /*
  * TODO: Refactor entirely
@@ -53,7 +54,7 @@ fn parse_expression(tokens: &[Token], mut index: usize) -> (Result<Gex, ParseErr
 
     match tokens[index].token_type {
         token_type::TokenType::Number => {
-            let x_num: f64 = tokens[index].content.parse().expect("lexing/parsing error. NaN found in numerical token");
+            let x_num = Decimal::from_str_exact(&tokens[index].content).expect("lexing/parsing error. NaN found in numerical token");
             let x = Gex::from_num(x_num);
             
             index += 1;
@@ -71,7 +72,7 @@ fn parse_expression(tokens: &[Token], mut index: usize) -> (Result<Gex, ParseErr
         token_type::TokenType::RangeOO |
         token_type::TokenType::RangeCO |
         token_type::TokenType::RangeOC => {
-            let x = Gex::from_num(i64::MIN as f64);
+            let x = Gex::from_num(i64::MIN.into());
             let res = parse_range(x, tokens, index);
             // TODO: Check if all tokens were actually consumed
             return res;
@@ -132,7 +133,7 @@ fn parse_selection(tokens: &[Token]) -> Result<Gex, ParseError> {
                 ))
             }
 
-            let number: f64 = tokens[index].content.parse().expect("lexing/parsing error. NaN found in numerical token");
+            let number = Decimal::from_str_exact(&tokens[index].content).expect("lexing/parsing error. NaN found in numerical token");
             entries.push(Gex::from_num(number));
         } else {
             if index >= tokens.len() {
@@ -184,7 +185,7 @@ fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, Parse
         let token_y = &tokens[index];
         match &token_y.token_type {
             TokenType::Number => {
-                let y_num: f64 = token_y.content.parse().expect("lexing/parsing error. NaN found in numerical token");
+                let y_num = Decimal::from_str_exact(&token_y.content).expect("lexing/parsing error. NaN found in numerical token");
                 index += 1;
                 Gex::from_num(y_num)
             }
@@ -206,11 +207,11 @@ fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, Parse
                     Err(err) => return (Err(err), index),
                 }
             }
-            _ => Gex::from_num(i64::MAX as f64)
+            _ => Gex::from_num(i64::MAX.into())
         }
     } else {
         // Ok so we have no more tokens to read, let's use the default value
-        Gex::from_num(i64::MAX as f64)
+        Gex::from_num(i64::MAX.into())
     };
 
     if tokens.len() > index {
@@ -224,8 +225,8 @@ fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, Parse
  * TODO: NEEDS IMMEDIATE REFACTORING
  */
 fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, ParseError>, usize) {
-    let mut c_mult_of: Option<f64> = None;
-    let mut c_not_mult_of: Option<Vec<f64>> = None;
+    let mut c_mult_of: Option<Decimal> = None;
+    let mut c_not_mult_of: Option<Vec<Decimal>> = None;
 
     while index < tokens.len() {
         let token = &tokens[index];
@@ -267,7 +268,7 @@ fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Resul
             },
             TokenType::CMultOf => {
                 index += 1;
-                Constraint::MultipleOf(0f64)
+                Constraint::MultipleOf(Decimal::ZERO)
             },
             _ => {
                 return (
@@ -283,7 +284,7 @@ fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Resul
         };
 
         // Find numbers
-        let mut entries: Vec<f64> = Vec::new();
+        let mut entries: Vec<Decimal> = Vec::new();
         let mut expecting_number = true; // we expect comma, number, comma, number..... After number we could also have another constraint
 
         'loop1: loop {
@@ -300,7 +301,7 @@ fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Resul
                     )
                 }
 
-                let number: f64 = tokens[index].content.parse().expect("lexing/parsing error. NaN found in numerical token");
+                let number = Decimal::from_str_exact(&tokens[index].content).expect("lexing/parsing error. NaN found in numerical token");
                 entries.push(number);
             } else {
                 if index >= tokens.len() {
@@ -396,7 +397,7 @@ fn find_selection_end(tokens: &[Token], mut index: usize) -> usize {
     index
 }
 
-fn least_common_multiple(numbers: &[f64]) -> f64 {
+fn least_common_multiple(numbers: &[Decimal]) -> Decimal {
     // Return this number if the length is 1
     if numbers.len() == 0 { panic!("LCM of 0 numbers?? WTF?") }
     if numbers.len() == 1 { return numbers[0] }
@@ -410,7 +411,7 @@ fn least_common_multiple(numbers: &[f64]) -> f64 {
     (x * y) / gcd
 }
 
-fn greatest_common_denominator(x: f64, y: f64) -> f64 {
+fn greatest_common_denominator(x: Decimal, y: Decimal) -> Decimal {
     // Order
     let max_xy = x.max(y);
     let min_xy = x.min(y);
@@ -418,7 +419,7 @@ fn greatest_common_denominator(x: f64, y: f64) -> f64 {
     // Euclidean Algorithm
     let mut bigger = max_xy;
     let mut smaller = min_xy;
-    while smaller != 0f64 {
+    while smaller != Decimal::ZERO {
         let rem = bigger % smaller;
         bigger = smaller;
         smaller = rem;
@@ -431,7 +432,7 @@ fn greatest_common_denominator(x: f64, y: f64) -> f64 {
 /**
  * Returns None if the range is too big for the budget or if there are no possible values
  */
-fn precalculate_constraint(orig: Gex, multiple_of: f64, not_multiple_of: Vec<f64>, start: f64, end: f64) -> Option<Gex> {
+fn precalculate_constraint(orig: Gex, multiple_of: Decimal, not_multiple_of: Vec<Decimal>, start: Decimal, end: Decimal) -> Option<Gex> {
     let max_byte_count = calc_max_constraint_size(multiple_of, end - start);
     println!("MAX MEMORY: {}/{} bytes", max_byte_count, PRECALC_MEMORY_BUDGET);
     if max_byte_count > PRECALC_MEMORY_BUDGET {
@@ -439,14 +440,14 @@ fn precalculate_constraint(orig: Gex, multiple_of: f64, not_multiple_of: Vec<f64
         return None
     }
 
-    let mut possible_value: Vec<f64> = Vec::new();
+    let mut possible_value: Vec<Decimal> = Vec::new();
     let mut current = (start / multiple_of).floor() * multiple_of;
 
     while current <= end  {
         // Check for blacklisted multiples
         let mut is_mult = false;
         for number in &not_multiple_of {
-            if current % number == 0f64 { is_mult = true; }
+            if current % number == Decimal::ZERO { is_mult = true; }
         }
         // If it's within the constraint we're done
         if !is_mult {
@@ -464,6 +465,6 @@ fn precalculate_constraint(orig: Gex, multiple_of: f64, not_multiple_of: Vec<f64
     Some(gex)
 }
 
-fn calc_max_constraint_size(multiple_of: f64, range: f64) -> f64 {
-    (range / multiple_of) * size_of::<f64>() as f64
+fn calc_max_constraint_size(multiple_of: Decimal, range: Decimal) -> Decimal {
+    (range / multiple_of) * Decimal::from_usize(size_of::<Decimal>()).unwrap()
 }

@@ -1,19 +1,14 @@
 use constraint::Constraint;
 use expression::Expression;
+use rust_decimal::{dec, Decimal};
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::rng_functions::{random_f64, random_i64, random_usize};
+use crate::{random_decimal, rng_functions::{random_decimal_int, random_usize}};
 
 pub mod expression;
 pub mod constraint;
 
 const MAX_RANGE_HELL_REROLLS: usize = 1000;
-
-/*
- * TODO: Improve ranges
- * 
- * - Right now, "0..10|*1" can never return 10, despite being (supposedly) a closed interval. Why?
- */
 
 /// A Grand Expression. It is a recursive structure that evaluates a range and modifiers (constraints)
 /// or a selection from a list.
@@ -22,14 +17,14 @@ const MAX_RANGE_HELL_REROLLS: usize = 1000;
 #[wasm_bindgen]
 pub struct Gex {
     expression_type: Expression,
-    min_number: f64,
-    max_number: f64,
+    min_number: Decimal,
+    max_number: Decimal,
     dynamic_constraints: Vec<Constraint>,
     float_mode: bool, // a mult_of constraint with an integer value disables float mode. Integer mode enforces closed/open ranges better
 }
 
 impl Gex {
-    pub fn from_num(num: f64) -> Self {
+    pub fn from_num(num: Decimal) -> Self {
         Gex {
             expression_type: Expression::Number(num),
             min_number: num,
@@ -63,7 +58,7 @@ impl Gex {
             .map(|gex| {
                 (gex.min_number, gex.max_number, gex.float_mode)
             })
-            .reduce(|acc, elem| (f64::min(acc.0, elem.0), f64::max(acc.1, elem.1), acc.2 || elem.2))
+            .reduce(|acc, elem| (Decimal::min(acc.0, elem.0), Decimal::max(acc.1, elem.1), acc.2 || elem.2))
             .expect("range was empty. This should be an Error, not a Panic");
 
         let objects: Vec<Box<Gex>> = objects.iter().map(|obj| {
@@ -78,7 +73,7 @@ impl Gex {
             float_mode
         }
     }
-    pub fn from_precalc(orig: Gex, values: Vec<f64>) -> Self {
+    pub fn from_precalc(orig: Gex, values: Vec<Decimal>) -> Self {
         // Get minimum and maximum values
         let min = values.get(0).unwrap().clone();
         let max = values.get(values.len()-1).unwrap().clone();
@@ -88,9 +83,10 @@ impl Gex {
             (Box::new(Gex::from_num(min)), Box::new(Gex::from_num(max)), false, false)
         };
         // Get Float mode by searching for a decimal number. If we find it, this Gex should be in float mode
+        // TODO: Remove float/integer mode distinction, it introduces more bugs
         let float_mode = 
             match values.iter().find(|value| {
-                *value % 1f64 != 0f64
+                !value.is_integer()
             }) {
                 Some(_) => true,
                 None => false,
@@ -105,16 +101,16 @@ impl Gex {
         }
     }
 
-    pub fn min_number(&self) -> f64 {
+    pub fn min_number(&self) -> Decimal {
         self.min_number
     }
-    pub fn max_number(&self) -> f64 {
+    pub fn max_number(&self) -> Decimal {
         self.max_number
     }
 
     pub fn add_constraint(&mut self, constraint: Constraint) {
         if let Constraint::MultipleOf(value) = constraint {
-            if value % 1f64 == 0f64 {
+            if value.is_integer() {
                 // If this number should be a multiple of an integer,
                 // float mode should be disabled
                 self.float_mode = false;
@@ -123,7 +119,7 @@ impl Gex {
         self.dynamic_constraints.push(constraint);
     }
 
-    pub fn run(&self) -> f64 {
+    pub fn run(&self) -> Decimal {
         match &self.expression_type {
             Expression::Number(out) => out.clone(),
             Expression::Range(gex_x, gex_y, x_open, y_open) => self.eval_range(gex_x.run(), gex_y.run(), *x_open, *y_open),
@@ -136,27 +132,27 @@ impl Gex {
         }
     }
 
-    fn eval_range(&self, x: f64, y: f64, x_open: bool, y_open: bool) -> f64 {
+    fn eval_range(&self, x: Decimal, y: Decimal, x_open: bool, y_open: bool) -> Decimal {
         self.eval_range_hell(x, y, x_open, y_open, 0)
     }
-    fn eval_range_hell(&self, x: f64, y: f64, x_open: bool, y_open: bool, iteration_n: usize) -> f64 {
+    fn eval_range_hell(&self, x: Decimal, y: Decimal, x_open: bool, y_open: bool, iteration_n: usize) -> Decimal {
         let mut number = if self.float_mode {
-            let mut generated = random_f64(x, y);
+            let mut generated = random_decimal(x, y);
             // This should basically never happen, but we have to check if we got exactly
             // X or Y in supposedly open intervals.
             // A bit strange how it's implemented but, again, it should never happen lol
             if x_open && generated == x {
-                generated += 0.001;
+                generated += dec!(0.001);
             }
             else if y_open && generated == y {
-                generated -= 0.001;
+                generated -= dec!(0.001);
             }
             generated
         } else {
             // Enforce ranges. This can actually be done with integers
-            let x_range_mod = if x_open { 1 } else { 0 };
-            let y_range_mod = if y_open { 0 } else { 1 };
-            random_i64(x as i64 + x_range_mod, y as i64 + y_range_mod) as f64
+            let x_range_mod = if x_open { Decimal::ONE } else { Decimal::ZERO };
+            let y_range_mod = if y_open { Decimal::ZERO } else { Decimal::ONE };
+            random_decimal_int(x + x_range_mod, y + y_range_mod)
         };
         
         for constraint in &self.dynamic_constraints {
@@ -173,7 +169,7 @@ impl Gex {
                     // try again
                     let mut is_mult: bool = false;
                     for n in items {
-                        if number % n == 0f64 { is_mult = true; }
+                        if number % n == Decimal::ZERO { is_mult = true; }
                     }
                     if is_mult {
                         // Ohhh shit... here we go again
@@ -186,7 +182,7 @@ impl Gex {
         number
     }
 
-    fn eval_select(options: Vec<f64>) -> f64 {
+    fn eval_select(options: Vec<Decimal>) -> Decimal {
         let random_index = random_usize(0, options.len());
         return options.get(random_index).expect("Out of range. Random index generated was incorrect").clone()
     }
@@ -197,7 +193,7 @@ impl Gex {
      * 
      * The possible_vals array is assumed to be sorted.
      */
-    fn eval_precalculated(x: f64, y: f64, x_open: bool, y_open: bool, possible_vals: &Vec<f64>) -> f64 {
+    fn eval_precalculated(x: Decimal, y: Decimal, x_open: bool, y_open: bool, possible_vals: &Vec<Decimal>) -> Decimal {
         let min_index = possible_vals.iter().position(|num| {
             if x_open {
                 *num > x

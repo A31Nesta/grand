@@ -59,6 +59,8 @@ pub use parser::gex::Gex;
 pub use parser::parse_error::ParseError;
 use wasm_bindgen::prelude::wasm_bindgen;
 
+use rust_decimal::prelude::ToPrimitive;
+
 #[wasm_bindgen]
 pub struct GrandEx {
     gex: Gex
@@ -67,7 +69,7 @@ pub struct GrandEx {
 #[wasm_bindgen]
 impl GrandEx {
     pub fn run(&self) -> f64 {
-        self.gex.run()
+        self.gex.run().to_f64().unwrap()
     }
 }
 
