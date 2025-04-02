@@ -25,7 +25,7 @@ fn main() {
         This number must be a multiple of 2, 3 and 5. The Least
         Common Multiple is calculated at compile-time (expr() function)
     */
-    let generator: grand::Gex = grand::expr("((0..10),,(20.,50|*2))|*2,3,5");
+    let generator: grand::GrandEx = grand::expr("((0..10),,(20.,50|*2))|*2,3,5");
 
     // Generates 10 numbers using the compiled expression.
     for _ in 0..10 {
@@ -35,9 +35,9 @@ fn main() {
 }
 ```
 
-- `grand::expr()` takes a string slice and returns a `Gex` (Grand Expression) object containing the "compiled" expression. Some minimal optimizations are done if possible.
+- `grand::expr()` takes a string slice and returns a `GrandEx` object containing the "compiled" expression. Some minimal optimizations are done if possible.
 
-- `grand::Gex::eval()` runs the expression and returns the random number generated.
+- `grand::GrandEx::eval()` runs the expression and returns the random number generated.
 
 ## Building
 

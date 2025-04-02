@@ -456,7 +456,8 @@ fn precalculate_constraint(orig: Gex, multiple_of: f64, not_multiple_of: Vec<f64
     }
 
     if possible_value.is_empty() {
-        return None;
+        // TODO: Add proper error handling
+        panic!("Incompatible constraints detected, check your constraints.")
     }
 
     let gex = Gex::from_precalc(orig, possible_value);
