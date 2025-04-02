@@ -210,16 +210,15 @@ impl Gex {
             // We return the position of the first INvalid value.
             // The last valid value is the one in the previous index.
             *num >= y
-        }).unwrap_or(possible_vals.len()-1);
-        max_index -= 1;
+        }).unwrap_or(possible_vals.len());
         // If our current max index is the same as the maximum value expected and this is
         // an open interval we can't take this number, we should take the previous one.
-        if *possible_vals.get(max_index).unwrap() == y && y_open {
+        if y_open && *possible_vals.get(max_index-1).unwrap() == y {
             max_index -= 1;
         }
 
         // Now we get an index within the range and return the precalculated value at that position
-        let index = random_usize(min_index, max_index);
+        let index = random_usize(min_index, max_index); // from min_index (inclusive) to max_index (without reaching it), this won't overflow
         *possible_vals.get(index).unwrap()
     }
 }
