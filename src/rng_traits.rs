@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Display};
 
+use rust_decimal::Decimal;
+
 pub trait Randomizable: Display + Debug {
     fn random() -> Self;
 }
@@ -103,5 +105,12 @@ impl Randomizable for f64 {
         let mut buf = [0u8; 8];
         getrandom::fill(&mut buf).expect("getting random numbers should be possible");
         f64::from_ne_bytes(buf)
+    }
+}
+
+impl Randomizable for Decimal {
+    fn random() -> Self {
+        let scale = u32::random() % Decimal::MAX_SCALE;
+        Decimal::from_parts(u32::random(), u32::random(), u32::random(), u8::random()%2==0, scale)
     }
 }

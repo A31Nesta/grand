@@ -123,15 +123,15 @@ impl Gex {
         self.dynamic_constraints.push(constraint);
     }
 
-    pub fn eval(&self) -> f64 {
+    pub fn run(&self) -> f64 {
         match &self.expression_type {
             Expression::Number(out) => out.clone(),
-            Expression::Range(gex_x, gex_y, x_open, y_open) => self.eval_range(gex_x.eval(), gex_y.eval(), *x_open, *y_open),
+            Expression::Range(gex_x, gex_y, x_open, y_open) => self.eval_range(gex_x.run(), gex_y.run(), *x_open, *y_open),
             Expression::Select(items) => Self::eval_select(items.iter().map(|gex| {
-                gex.eval()
+                gex.run()
             }).collect()),
             Expression::PrecalculatedRange(gex_x, gex_y, x_open, y_open, possible_vals) => {
-                Self::eval_precalculated(gex_x.eval(), gex_y.eval(), *x_open, *y_open, possible_vals)
+                Self::eval_precalculated(gex_x.run(), gex_y.run(), *x_open, *y_open, possible_vals)
             }
         }
     }

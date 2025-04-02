@@ -54,6 +54,7 @@ mod parser;
 use parser::parse;
 
 pub use rng_traits::Randomizable;
+pub use rng_functions::random_decimal;
 pub use parser::gex::Gex;
 pub use parser::parse_error::ParseError;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -65,12 +66,12 @@ pub struct GrandEx {
 
 #[wasm_bindgen]
 impl GrandEx {
-    pub fn eval(&self) -> f64 {
-        self.gex.eval()
+    pub fn run(&self) -> f64 {
+        self.gex.run()
     }
 }
 
 #[wasm_bindgen]
-pub fn expr(expression: &str) -> GrandEx {
+pub fn compile(expression: &str) -> GrandEx {
     GrandEx { gex: parse(expression) }
 }
