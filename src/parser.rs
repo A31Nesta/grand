@@ -22,8 +22,8 @@ const PRECALC_MEMORY_BUDGET: Decimal = dec!(131072); // 1 MB Maximum
  * - Lacking features (expressions in Selections)
  * 
  * SOLUTION:
- * - More general parse_eval() that calls other functions like parse_range() or parse_selection().
- * - Heavier use of this improved parse_eval(). Useful inside parse_range() and parse_selection().
+ * - More general parse_expression() that calls other functions like parse_range() or parse_selection().
+ * - Heavier use of this improved parse_expression(). Useful inside parse_range() and parse_selection().
  * - Utility functions for reading arrays of numbers.
  *     - Option to allow or disallow sub-expressions (number-only mode for constraints)
  * - Add configuration

@@ -1,6 +1,9 @@
 [package]
 name = "grand"
-version = "0.1.0"
+description = "JIT-compiled language for constraint-based Random Number Generation"
+repository = "https://github.com/A31Nesta/grand"
+license = "MIT or Apache-2.0"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
