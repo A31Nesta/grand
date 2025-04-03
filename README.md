@@ -1,13 +1,14 @@
 # Grand
 
-A Glorified `rand()` function. It's like RegEx but for numbers... kinda?
+A Glorified `rand()`.  
+JIT-compiled language to create constraint-based Random Number Generators.
 
-More specifically a constraint-based random number generator in the form
-of a JIT-compiled language.
+You can check out the language directly from your browser here:  
+https://the.black.observer/#/libraries/grand
 
 ## Basic Usage:
 
-Grand evaluates expressions (Grand Expressions) in order to generate the numbers. These expressions are based on ranges that can generate numbers that also follow specific constraints.
+Grand evaluates expressions (Grand Expressions) in order to create the generators. These expressions can be ranges that can generate numbers that also follow specific constraints or simply a selection from a list.
 
 ```rust
 fn main() {
@@ -16,6 +17,9 @@ fn main() {
 
     // Any multiple of 2
     let even_num = grand::compile("..|*2").generate();
+
+    // A selection from a list
+    let element = grand::compile("[1,43,8,-37,3.53,87]").generate();
 
     /*
         Generate a number between (but not equal to) a random
@@ -35,11 +39,11 @@ fn main() {
 }
 ```
 
-- `grand::compile()` takes a string slice and returns a `GrandEx` object containing the "compiled" expression. Some minimal optimizations are done if possible.
+- `grand::compile()` takes a string slice and returns a `GrandEx` object containing the compiled expression. Some minimal optimizations are done if possible.
 
 - `grand::GrandEx::generate()` runs the expression and returns the random number generated.
 
-## Building
+## Building to WASM
 
 Run this command to build the library for WASM:
 ```bash
