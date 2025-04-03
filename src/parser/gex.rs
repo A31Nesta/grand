@@ -3,7 +3,7 @@ use expression::Expression;
 use rust_decimal::{dec, Decimal};
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::{random_decimal, rng_functions::{random_decimal_int, random_usize}};
+use crate::rng_functions::{random_decimal_int, random_usize, random_decimal};
 
 pub mod expression;
 pub mod constraint;
@@ -119,15 +119,15 @@ impl Gex {
         self.dynamic_constraints.push(constraint);
     }
 
-    pub fn run(&self) -> Decimal {
+    pub fn generate(&self) -> Decimal {
         match &self.expression_type {
             Expression::Number(out) => out.clone(),
-            Expression::Range(gex_x, gex_y, x_open, y_open) => self.eval_range(gex_x.run(), gex_y.run(), *x_open, *y_open),
+            Expression::Range(gex_x, gex_y, x_open, y_open) => self.eval_range(gex_x.generate(), gex_y.generate(), *x_open, *y_open),
             Expression::Select(items) => Self::eval_select(items.iter().map(|gex| {
-                gex.run()
+                gex.generate()
             }).collect()),
             Expression::PrecalculatedRange(gex_x, gex_y, x_open, y_open, possible_vals) => {
-                Self::eval_precalculated(gex_x.run(), gex_y.run(), *x_open, *y_open, possible_vals)
+                Self::eval_precalculated(gex_x.generate(), gex_y.generate(), *x_open, *y_open, possible_vals)
             }
         }
     }

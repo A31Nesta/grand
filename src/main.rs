@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let gex = compile("0..24|*0.01");
     
     for _ in 0..10 {
-        let res = gex.run();
+        let res = gex.generate();
         println!("Result: {res}");
     }
 

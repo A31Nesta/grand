@@ -2,7 +2,7 @@ use std::{error::Error, fmt::Display};
 
 use super::token_type::TokenType;
 
-/// Error type for parser errors. They can be:
+/// Error type for parser errors.
 /// 
 /// ## UnexpectedToken
 /// 
