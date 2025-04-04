@@ -3,7 +3,7 @@ use expression::Expression;
 use rust_decimal::{dec, Decimal};
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::rng_functions::{random_decimal_int, random_usize, random_decimal};
+use crate::rng_functions::{random_usize, random_decimal};
 
 pub mod expression;
 pub mod constraint;
@@ -20,7 +20,7 @@ pub struct Gex {
     min_number: Decimal,
     max_number: Decimal,
     dynamic_constraints: Vec<Constraint>,
-    float_mode: bool, // a mult_of constraint with an integer value disables float mode. Integer mode enforces closed/open ranges better
+    mult_of: Option<Decimal>, // For mult_of constraints. Allows the generator to generate closed/open ranges properly. It's the scale of the mult_of constraint's decimal
 }
 
 impl Gex {
@@ -30,7 +30,7 @@ impl Gex {
             min_number: num,
             max_number: num,
             dynamic_constraints: Vec::new(),
-            float_mode: true
+            mult_of: None
         }
     }
     pub fn from_range(x: Gex, y: Gex, x_open: bool, y_open: bool) -> Self {
@@ -46,19 +46,19 @@ impl Gex {
             min_number,
             max_number,
             dynamic_constraints: Vec::new(),
-            float_mode: true
+            mult_of: None
         }
     }
     pub fn from_select(objects: Vec<Gex>) -> Self {
         // Get minimum and maximum values and float mode
         // Float mode propagates, if this Gex contains float-mode Gexes, it will become
         // a float-mode Gex as well
-        let (min_number, max_number, float_mode) = objects
+        let (min_number, max_number) = objects
             .iter()
             .map(|gex| {
-                (gex.min_number, gex.max_number, gex.float_mode)
+                (gex.min_number, gex.max_number)
             })
-            .reduce(|acc, elem| (Decimal::min(acc.0, elem.0), Decimal::max(acc.1, elem.1), acc.2 || elem.2))
+            .reduce(|acc, elem| (Decimal::min(acc.0, elem.0), Decimal::max(acc.1, elem.1)))
             .expect("range was empty. This should be an Error, not a Panic");
 
         let objects: Vec<Box<Gex>> = objects.iter().map(|obj| {
@@ -70,7 +70,7 @@ impl Gex {
             min_number,
             max_number,
             dynamic_constraints: Vec::new(),
-            float_mode
+            mult_of: None
         }
     }
     pub fn from_precalc(orig: Gex, values: Vec<Decimal>) -> Self {
@@ -82,22 +82,13 @@ impl Gex {
         } else {
             (Box::new(Gex::from_num(min)), Box::new(Gex::from_num(max)), false, false)
         };
-        // Get Float mode by searching for a decimal number. If we find it, this Gex should be in float mode
-        // TODO: Remove float/integer mode distinction, it introduces more bugs
-        let float_mode = 
-            match values.iter().find(|value| {
-                !value.is_integer()
-            }) {
-                Some(_) => true,
-                None => false,
-            }
-        ;
+
         Gex {
             expression_type: Expression::PrecalculatedRange(x_gex, y_gex, x_open, y_open, values),
             min_number: min,
             max_number: max,
             dynamic_constraints: Vec::new(),
-            float_mode
+            mult_of: None
         }
     }
 
@@ -110,11 +101,7 @@ impl Gex {
 
     pub fn add_constraint(&mut self, constraint: Constraint) {
         if let Constraint::MultipleOf(value) = constraint {
-            if value.is_integer() {
-                // If this number should be a multiple of an integer,
-                // float mode should be disabled
-                self.float_mode = false;
-            }
+            self.mult_of = Some(value);
         }
         self.dynamic_constraints.push(constraint);
     }
@@ -136,29 +123,29 @@ impl Gex {
         self.eval_range_hell(x, y, x_open, y_open, 0)
     }
     fn eval_range_hell(&self, x: Decimal, y: Decimal, x_open: bool, y_open: bool, iteration_n: usize) -> Decimal {
-        let mut number = if self.float_mode {
-            let mut generated = random_decimal(x, y);
-            // This should basically never happen, but we have to check if we got exactly
-            // X or Y in supposedly open intervals.
-            // A bit strange how it's implemented but, again, it should never happen lol
-            if x_open && generated == x {
-                generated += dec!(0.001);
-            }
-            else if y_open && generated == y {
-                generated -= dec!(0.001);
-            }
-            generated
+        let mut number = if let Some(mult_of) = self.mult_of {
+            let x_range_mod = if x_open { mult_of } else { Decimal::ZERO };
+            let y_range_mod = if y_open { Decimal::ZERO } else { mult_of };
+            // println!("{}, {}", x + x_range_mod, y + y_range_mod);
+            random_decimal(x + x_range_mod, y + y_range_mod)
         } else {
-            // Enforce ranges. This can actually be done with integers
-            let x_range_mod = if x_open { Decimal::ONE } else { Decimal::ZERO };
-            let y_range_mod = if y_open { Decimal::ZERO } else { Decimal::ONE };
-            random_decimal_int(x + x_range_mod, y + y_range_mod)
+            random_decimal(x, y)
         };
+        // This should basically never happen, but we have to check if we got exactly
+        // X or Y in supposedly open intervals.
+        // A bit strange how it's implemented but, again, it should never happen lol
+        if x_open && number == x {
+            number += dec!(0.001);
+        }
+        else if y_open && number == y {
+            number -= dec!(0.001);
+        }
         
         for constraint in &self.dynamic_constraints {
             match constraint {
                 Constraint::MultipleOf(mult_of) => {
                     number = (number / mult_of).floor() * mult_of;
+                    // println!("{number} => {}", (number / mult_of).floor() * mult_of);
                 },
                 Constraint::NotMultipleOf(items) => {
                     // Stop infinite rerolls when we tried a bunch of times with no... hehe.. dice
