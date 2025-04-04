@@ -1,5 +1,5 @@
 use gex::{constraint::Constraint, Gex};
-use parse_error::ParseError;
+use parse_error::CompilerError;
 use rust_decimal::{dec, prelude::FromPrimitive, Decimal};
 use token::Token;
 use token_type::TokenType;
@@ -33,16 +33,19 @@ const PRECALC_MEMORY_BUDGET: Decimal = dec!(131072); // 1 MB Maximum
 pub fn parse(source: &str) -> Gex {
     let tokens = lexer::tokenize(source);
     lexer::print_tokens(&tokens);
-    parse_expression(&tokens, 0).0.unwrap()
+    parse_expression(&tokens, 0, false).0.unwrap()
 }
 
 /*
- * The entire code is a single expression.
+ * The entire code is an expression (or multiple)
  * This expression can contain sub-expressions.
  * This function returns a Gex with all the sub-expressions
  * already included by using recursion.
+ * 
+ * INFO: allow_comma indicates that this function has been called to read part of a list
+ *       and that we should stop reading as soon as we find a comma.
  */
-fn parse_expression(tokens: &[Token], mut index: usize) -> (Result<Gex, ParseError>, usize) {
+fn parse_expression(tokens: &[Token], mut index: usize, allow_comma: bool) -> (Result<Gex, CompilerError>, usize) {
     // At the beginning of an expression we expect:
     // - A number (Gex with Expression of type Number)
     // - A Range operator followed by a number or sub-expression
@@ -52,108 +55,101 @@ fn parse_expression(tokens: &[Token], mut index: usize) -> (Result<Gex, ParseErr
     // - A Selection. This is indicated by a bracket. It's parsed in a similar way as sub-expressions,
     //    but this time we call parse_selection().
 
-    match tokens[index].token_type {
-        token_type::TokenType::Number => {
-            let x_num = Decimal::from_str_exact(&tokens[index].content).expect("lexing/parsing error. NaN found in numerical token");
-            let x = Gex::from_num(x_num);
-            
-            index += 1;
-            // If there are more tokens we keep parsing this as a range.
-            // If there are none, we just return the number
-            if tokens.len() > index {
-                let res = parse_range(x, tokens, index);
-                // TODO: Check if all tokens were actually consumed
-                return res;
-            } else {
-                return (Ok(x), index);
-            }
-        },
-        token_type::TokenType::RangeCC |
-        token_type::TokenType::RangeOO |
-        token_type::TokenType::RangeCO |
-        token_type::TokenType::RangeOC => {
-            let x = Gex::from_num(i64::MIN.into());
-            let res = parse_range(x, tokens, index);
-            // TODO: Check if all tokens were actually consumed
-            return res;
-        }
-        token_type::TokenType::LBrack => {
-            let subex_end_index = find_selection_end(tokens, index);
-            let res = parse_selection(&tokens[index+1..subex_end_index]);
-            index = subex_end_index+1;
-            // TODO: Check if all tokens were actually consumed
-            return (res, index);
-        },
-        token_type::TokenType::LParen => {
-            let subex_end_index = find_subexpression_end(tokens, index);
-            let (res, _) = parse_expression(&tokens[index+1..subex_end_index], 0);
+    let mut accumulator: Option<Gex> = None;
 
-            // If there was an error we propagate it
-            if let Err(_) = &res {
-                return (res, index);
+    while index < tokens.len() {
+        match tokens[index].token_type {
+            token_type::TokenType::Number => {
+                let x_num = Decimal::from_str_exact(&tokens[index].content).expect("lexing/parsing error. NaN found in numerical token");
+                let x = Gex::from_num(x_num);
+                
+                index += 1;
+                accumulator = Some(x);
+            },
+            token_type::TokenType::RangeCC |
+            token_type::TokenType::RangeOO |
+            token_type::TokenType::RangeCO |
+            token_type::TokenType::RangeOC => {
+                // Create range with X being the value in the accumulator
+                let x = match accumulator {
+                    Some(gex) => gex,
+                    None => Gex::from_num(i64::MIN.into()),
+                };
+                let res = parse_range(x, tokens, index);
+                index = res.1;
+                match res.0 {
+                    Ok(gex) => accumulator = Some(gex),
+                    Err(error) => return (Err(error), index), // TODO: Accumulate errors, show every error at one after compilation attempt
+                }
             }
-            // Otherwise we continue reading (or return the Gex if we're done)
-            index = subex_end_index+1;
-            if tokens.len() > index {
-                let parsed_range = parse_range(res.unwrap(), tokens, index);
-                // TODO: Check if all tokens were actually consumed
-                return parsed_range;
-            } else {
-                return (Ok(res.unwrap()), index);
+            token_type::TokenType::LBrack => {
+                let subex_end_index = find_selection_end(tokens, index);
+                let res = parse_selection(&tokens[index+1..subex_end_index]);
+                index = subex_end_index+1;
+                match res {
+                    Ok(gex) => accumulator = Some(gex),
+                    Err(error) => return (Err(error), index), // TODO: Accumulate errors, show every error at one after compilation attempt
+                }
+            },
+            token_type::TokenType::LParen => {
+                let subex_end_index = find_subexpression_end(tokens, index);
+                let (res, _) = parse_expression(&tokens[index+1..subex_end_index], 0, false);
+    
+                // If there was an error we propagate it
+                // Otherwise we put the result into the accumulator
+                index = subex_end_index+1;
+                match res {
+                    Ok(gex) => accumulator = Some(gex),
+                    Err(error) => return (Err(error), index), // TODO: Accumulate errors, show every error at one after compilation attempt
+                }
+            },
+            token_type::TokenType::Comma => {
+                // INFO: This ends the expression and is only valid when reading in list mode
+                if allow_comma {
+                    index += 1;
+                    break; // Finish parsing early
+                } else {
+                    return (Err(CompilerError::UnexpectedToken(
+                        vec![TokenType::Number, TokenType::RangeCC, TokenType::RangeCO, TokenType::RangeOC, TokenType::RangeOO, TokenType::LBrack, TokenType::LParen],
+                        tokens[index].token_type.clone(),
+                        tokens[index].line,
+                        tokens[index].column
+                    )), index)
+                }
             }
-        },
-        _ => {
-            // Throw Unexpected Token error
-            return (Err(ParseError::UnexpectedToken(
-                vec![TokenType::Number, TokenType::RangeCC, TokenType::RangeCO, TokenType::RangeOC, TokenType::RangeOO, TokenType::LBrack, TokenType::LParen],
-                tokens[index].token_type.clone(),
-                tokens[index].line,
-                tokens[index].column
-            )), index)
-        }
+            _ => {
+                // Throw Unexpected Token error
+                return (Err(CompilerError::UnexpectedToken(
+                    vec![TokenType::Number, TokenType::RangeCC, TokenType::RangeCO, TokenType::RangeOC, TokenType::RangeOO, TokenType::LBrack, TokenType::LParen],
+                    tokens[index].token_type.clone(),
+                    tokens[index].line,
+                    tokens[index].column
+                )), index)
+            }
+        } // match token type
+    } // while loop
+    
+    // TODO: Check if all tokens were actually consumed
+    match accumulator {
+        Some(gex) => (Ok(gex), index),
+        None => (Err(CompilerError::NoExpressions), index),
     }
 }
 
-// Refactor into READ_VECTOR
-fn parse_selection(tokens: &[Token]) -> Result<Gex, ParseError> {
+// TODO: Refactor into READ_VECTOR
+fn parse_selection(tokens: &[Token]) -> Result<Gex, CompilerError> {
     let mut index = 0;
     // Find numbers
     let mut entries: Vec<Gex> = Vec::new();
-    let mut expecting_number = true; // we expect comma, number, comma, number..... After number we could also have another constraint
 
-    'loop1: loop {
-        if expecting_number {
-            // TODO: Allow the use of other expressions
-            if tokens[index].token_type != TokenType::Number {
-                return Err(ParseError::UnexpectedToken(
-                    vec![TokenType::Number],
-                    tokens[index].token_type.clone(),
-                    tokens[index].line,
-                    tokens[index].column
-                ))
-            }
-
-            let number = Decimal::from_str_exact(&tokens[index].content).expect("lexing/parsing error. NaN found in numerical token");
-            entries.push(Gex::from_num(number));
-        } else {
-            if index >= tokens.len() {
-                break;
-            }
-            match tokens[index].token_type {
-                TokenType::Comma => (), // Continue the loop as usual
-                TokenType::Constraint => {
-                    break 'loop1;
-                },
-                _ => return Err(ParseError::UnexpectedToken(
-                    vec![TokenType::Comma, TokenType::Constraint],
-                    tokens[index].token_type.clone(),
-                    tokens[index].line,
-                    tokens[index].column
-                ))
-            }
+    loop {
+        if index >= tokens.len() {
+            break;
         }
-        expecting_number = !expecting_number;
-        index += 1;
+
+        let (res, new_index) = parse_expression(&tokens, index, true);
+        index = new_index;
+        entries.push(res?);
     }
 
     Ok(Gex::from_select(entries))
@@ -162,14 +158,14 @@ fn parse_selection(tokens: &[Token]) -> Result<Gex, ParseError> {
 /*
  * Takes the first Gex (x) and the tokens and index for the next 
  */
-fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, ParseError>, usize) {
+fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, CompilerError>, usize) {
     let (x_open, y_open) = match tokens[index].token_type {
         TokenType::RangeCC => (false, false),
         TokenType::RangeOO => (true, true),
         TokenType::RangeCO => (false, true),
         TokenType::RangeOC => (true, false),
         _ => {
-            return (Err(ParseError::UnexpectedToken(
+            return (Err(CompilerError::UnexpectedToken(
                 vec![TokenType::RangeCC, TokenType::RangeCO, TokenType::RangeOC, TokenType::RangeOO],
                 tokens[index].token_type.clone(),
                 tokens[index].line,
@@ -200,7 +196,7 @@ fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, Parse
             }
             TokenType::LParen => {
                 let subex_end_index = find_subexpression_end(tokens, index);
-                let (res, _) = parse_expression(&tokens[index+1..subex_end_index], 0);
+                let (res, _) = parse_expression(&tokens[index+1..subex_end_index], 0, false);
                 index = subex_end_index+1;
                 match res {
                     Ok(gex) => gex,
@@ -215,7 +211,11 @@ fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, Parse
     };
 
     if tokens.len() > index {
-        parse_constraints(Gex::from_range(x, y, x_open, y_open), tokens, index)
+        if let TokenType::Constraint = tokens[index].token_type {
+            parse_constraints(Gex::from_range(x, y, x_open, y_open), tokens, index)
+        } else {
+            (Ok(Gex::from_range(x, y, x_open, y_open)), index)
+        }
     } else {
         (Ok(Gex::from_range(x, y, x_open, y_open)), index)
     }
@@ -224,7 +224,7 @@ fn parse_range(x: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, Parse
 /*
  * TODO: NEEDS IMMEDIATE REFACTORING
  */
-fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, ParseError>, usize) {
+fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Result<Gex, CompilerError>, usize) {
     let mut c_mult_of: Option<Decimal> = None;
     let mut c_not_mult_of: Option<Vec<Decimal>> = None;
 
@@ -234,7 +234,7 @@ fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Resul
         // Exit if this is not a constraint
         if token.token_type != TokenType::Constraint {
             return (
-                Err(ParseError::UnexpectedToken(
+                Err(CompilerError::UnexpectedToken(
                     vec![TokenType::Constraint],
                     token.token_type.clone(),
                     token.line,
@@ -254,7 +254,7 @@ fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Resul
                 // TODO: Change with match if this ever gets expanded. Alternatively, refactor to avoid duplication
                 if tokens[index].token_type != TokenType::CMultOf {
                     return (
-                        Err(ParseError::UnexpectedToken(
+                        Err(CompilerError::UnexpectedToken(
                             vec![TokenType::CMultOf],
                             token.token_type.clone(),
                             token.line,
@@ -272,7 +272,7 @@ fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Resul
             },
             _ => {
                 return (
-                    Err(ParseError::UnexpectedToken(
+                    Err(CompilerError::UnexpectedToken(
                         vec![TokenType::Not, TokenType::CMultOf],
                         token.token_type.clone(),
                         token.line,
@@ -291,7 +291,7 @@ fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Resul
             if expecting_number {
                 if tokens[index].token_type != TokenType::Number {
                     return (
-                        Err(ParseError::UnexpectedToken(
+                        Err(CompilerError::UnexpectedToken(
                             vec![TokenType::Number],
                             token.token_type.clone(),
                             token.line,
@@ -313,7 +313,7 @@ fn parse_constraints(mut gex: Gex, tokens: &[Token], mut index: usize) -> (Resul
                         break 'loop1;
                     },
                     _ => return (
-                        Err(ParseError::UnexpectedToken(
+                        Err(CompilerError::UnexpectedToken(
                             vec![TokenType::Comma, TokenType::Constraint],
                             tokens[index].token_type.clone(),
                             tokens[index].line,

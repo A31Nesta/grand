@@ -79,7 +79,7 @@ use parser::parse;
 
 pub use rng_traits::Randomizable;
 pub use parser::gex::Gex;
-pub use parser::parse_error::ParseError;
+pub use parser::parse_error::CompilerError;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 use rust_decimal::prelude::ToPrimitive;
