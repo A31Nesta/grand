@@ -1,14 +1,14 @@
 # Grand
 
 A Glorified `rand()`.  
-JIT-compiled language to create constraint-based Random Number Generators.
+Expression language to create constraint-based Random Number Generators.
 
 You can check out the language directly from your browser here:  
 https://the.black.observer/#/libraries/grand
 
 ## Basic Usage:
 
-Grand evaluates expressions (Grand Expressions) in order to create the generators. These expressions can be ranges that can generate numbers that also follow specific constraints or simply a selection from a list.
+Grand compiles expressions (Grand Expressions) into fast Random Number Generators. These expressions can be ranges that can generate numbers that also follow specific constraints or simply a selection from a list.
 
 ```rust
 fn main() {

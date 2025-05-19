@@ -1,6 +1,6 @@
 //! # Grand Expressions
 //! 
-//! **Grand** (Glorified `rand()`) is a JIT-compiled language to create constraint-based Random
+//! **Grand** (Glorified `rand()`) is an expression language to create constraint-based Random
 //! Number Generators. Each "program" is called "Grand Expression".
 //! 
 //! ## How do they look like?

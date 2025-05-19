@@ -1,6 +1,6 @@
 [package]
 name = "grand"
-description = "JIT-compiled language for constraint-based Random Number Generation"
+description = "Expression language for constraint-based WASM-compatible Random Number Generation"
 repository = "https://github.com/A31Nesta/grand"
 license = "MIT or Apache-2.0"
 version = "0.2.0"
